@@ -233,7 +233,7 @@ test_kokkos(const int M, const int N, const int nrepeat)
   using MemSpace = Kokkos::CudaSpace;
 
   using ExecSpace    = MemSpace::execution_space;
-  using range_policy = Kokkos::RangePolicy<ExecSpace>;
+  using range_policy = Kokkos::MDRangePolicy<Kokkos::Rank<2, Kokkos::Iterate::Left, Kokkos::Iterate::Left>, ExecSpace>;
 
   // Allocate Matrix A on device.
   typedef Kokkos::View<double *, Kokkos::LayoutLeft, MemSpace>  ViewVectorType;
@@ -268,17 +268,10 @@ test_kokkos(const int M, const int N, const int nrepeat)
 
       Kokkos::parallel_reduce(
         "Frobenius norm",
-        range_policy(0, N),
-        KOKKOS_LAMBDA(int j, double &update) {
-          double temp2 = 0;
-
-          for (int i = 0; i < M; ++i)
-            {
-              double t = fabs(A(j, i));
-              temp2 += t * t;
-            }
-
-          update += temp2;
+        range_policy({0,0}, {N,M}, {256,4}),
+        KOKKOS_LAMBDA(int j, int i, double &update) {
+          double t = fabs(A(j, i));
+          update += t * t;
         },
         result);
     }
