@@ -230,14 +230,23 @@ test_host(int size, int nrepeat)
 void
 test_kokkos(const int M, const int N, const int nrepeat)
 {
-  using MemSpace = Kokkos::CudaSpace;
+  using range_policy = Kokkos::MDRangePolicy<Kokkos::Rank<2>>;
 
-  using ExecSpace    = MemSpace::execution_space;
-  using range_policy = Kokkos::MDRangePolicy<Kokkos::Rank<2, Kokkos::Iterate::Left, Kokkos::Iterate::Left>, ExecSpace>;
+  int T1 = 0;
+  int T2 = 0;
+
+  //These are tiling parameters which dictate how Kokkos divides the blocks in the i and j directions. We want the larger number to match our memory space's layout (Left for device, Right for host).
+  if (std::is_same<Kokkos::DefaultHostExecutionSpace,Kokkos::DefaultExecutionSpace>::value){
+    T1 = 4;
+    T2 = 256;
+  } else {
+    T1 = 256;
+    T2 = 4;
+  }
 
   // Allocate Matrix A on device.
-  typedef Kokkos::View<double *, Kokkos::LayoutLeft, MemSpace>  ViewVectorType;
-  typedef Kokkos::View<double **, Kokkos::LayoutLeft, MemSpace> ViewMatrixType;
+  typedef Kokkos::View<double *>  ViewVectorType;
+  typedef Kokkos::View<double **> ViewMatrixType;
   ViewMatrixType                                                A("A", M, N);
 
   // Create host mirrors of device views.
@@ -268,7 +277,7 @@ test_kokkos(const int M, const int N, const int nrepeat)
 
       Kokkos::parallel_reduce(
         "Frobenius norm",
-        range_policy({0,0}, {N,M}, {256,4}),
+        range_policy({0,0}, {N,M}, {T1,T2}),
         KOKKOS_LAMBDA(int j, int i, double &update) {
           double t = fabs(A(j, i));
           update += t * t;
